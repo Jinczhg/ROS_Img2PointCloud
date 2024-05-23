@@ -1,0 +1,46 @@
+<launch>
+        <arg name="play_bagfile" default="true" />
+        
+        <arg name="record_pointcloud" default="false" />
+    
+        <node pkg="rosbag" type="play" name="player" output="screen" 
+              args="--clock /home/jzhang72/NetBeansProjects/ROS_Img2PointCloud/ros_ws/mapping_article_data/2023-12-15-19-58-12.bag"
+              if="$(arg play_bagfile)" />	
+        
+        <!-- docs: https://wiki.ros.org/nodelet/Tutorials/Running%20a%20nodelet -->
+	<!-- docs: http://wiki.ros.org/depth_image_proc -->
+	<!-- docs: https://wiki.ros.org/openni_launch -->
+	<!-- docs: https://gist.github.com/bhaskara/2400165 -->
+	
+	<!-- Nodelet manager -->
+	<node pkg="nodelet" type="nodelet" args="manager" name="depth_to_pointcloud_manager" output="screen"/>
+
+	<!-- Nodelets! -->
+	<!-- Convert PERSPECTIVE depth (point_cloud_xyzrgb_radial) into a point cloud -->
+	<node pkg="nodelet" type="nodelet" name="mapping_article_depth2cloud" args="load depth_image_proc/point_cloud_xyzrgb_radial depth_to_pointcloud_manager" output="screen">
+		<remap from="depth_registered/image_rect" to="/airsim_node/drone_1/leftCamera_forward_custom/DepthPerspective"/>
+		<remap from="depth_registered/points" to="/airsim_node/drone_1/leftCamera_forward_custom/points"/>
+		<remap from="rgb/image_rect_color" to="/airsim_node/drone_1/leftCamera_forward_custom/Scene"/>
+		<remap from="rgb/camera_info" to="/airsim_node/drone_1/leftCamera_forward_custom/DepthPerspective/camera_info"/>
+	</node>
+        
+        <node pkg="img2ptcloud" type="img2ptcloud" name="transform_point_cloud_to_world"  output="screen">
+        </node>
+	
+        <!-- Not able to save files real-time-->
+<!--	<node pkg="pcl_ros" type="pointcloud_to_pcd" name="pointcloud_to_pcd" args="" output="screen">
+		<remap from="input" to="/airsim_node/drone_1/leftCamera_forward_custom/points"/>
+	</node>-->
+	
+	<node pkg="tf" type="static_transform_publisher" name="depth_proc_to_map" args="0 0 0 0 0 0 leftCamera_forward_custom_optical drone_1 100"/>
+	
+	<node type="rviz" name="rviz" pkg="rviz" args="-d $(find img2ptcloud)/launch/rviz.rviz" />
+        
+        <node pkg="rosbag" type="record" name="recorder" output="screen" 
+              args="/pointCloud -O $(find img2ptcloud)/../../mapping_article_data/pointcloud.bag"
+              if="$(arg record_pointcloud)" />
+        
+        <!-- terminal command to convert point cloud bagfile to PCD files:
+              rosrun pcl_ros bag_to_pcd ./pointcloud.bag /pointCloud ./frame_pcd -->
+        
+</launch>
